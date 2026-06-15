@@ -1,0 +1,83 @@
+MODEL:
+  BACKBONE:
+    FREEZE_AT: 0
+    NAME: "build_resnet_backbone"
+  WEIGHTS: "detectron2://ImageNetPretrained/torchvision/R-50.pkl"
+#  PIXEL_MEAN: [123.675, 116.280, 103.530]
+#  PIXEL_STD: [58.395, 57.120, 57.375]
+  PIXEL_MEAN: [56.499, 65.976, 58.657, 100.830]
+  PIXEL_STD: [42.671, 43.113, 42.843, 19.323]
+  RESNETS:
+    DEPTH: 50
+    STEM_TYPE: "basic"  # not used
+    STEM_OUT_CHANNELS: 64
+    STRIDE_IN_1X1: False
+    OUT_FEATURES: ["res2", "res3", "res4", "res5"]
+#    NORM: "SyncBN"  # use syncbn for cityscapes dataset
+    NORM: "BN"
+    RES5_MULTI_GRID: [1, 1, 1]  # not used
+DATASETS:
+  TRAIN: ("MFNetDataset_train",)
+#  TRAIN: ("InfraParis_train",)
+  TEST: ("MFNetDataset_val",)
+#  TEST: ("MFNetDataset_test",)
+#  TEST: ("InfraParis_val",)
+SOLVER:
+  IMS_PER_BATCH: 4  # batch size
+  BASE_LR: 0.0001
+  MAX_ITER: 40000  # epoch: 100(bs=4)
+  CHECKPOINT_PERIOD: 8000  # every 20 epoch(bs=4)
+  WARMUP_FACTOR: 1.0
+  WARMUP_ITERS: 0
+  WEIGHT_DECAY: 0.05
+  OPTIMIZER: "ADAMW"
+#  LR_SCHEDULER_NAME: "WarmupPolyLR"
+  LR_SCHEDULER_NAME: "WarmupCosineLR"
+  BACKBONE_MULTIPLIER: 0.1
+  CLIP_GRADIENTS:
+    ENABLED: True
+    CLIP_TYPE: "full_model"
+    CLIP_VALUE: 0.01
+    NORM_TYPE: 2.0
+  AMP:
+    ENABLED: True
+INPUT:
+  MIN_SIZE_TRAIN: !!python/object/apply:eval ["[int(x * 0.1 * 640) for x in range(5, 21)]"]
+  MIN_SIZE_TRAIN_SAMPLING: "choice"
+  MIN_SIZE_TEST: 640
+  MAX_SIZE_TRAIN: 2560
+  MAX_SIZE_TEST: 1280
+  CROP:
+    ENABLED: True
+    TYPE: "absolute"
+    SIZE: (640, 640)
+    SINGLE_CATEGORY_MAX_AREA: 1.0
+
+#  MIN_SIZE_TRAIN: !!python/object/apply:eval [ "[int(x * 0.1 * 1080) for x in range(5, 21)]" ]
+#  MIN_SIZE_TRAIN_SAMPLING: "choice"
+#  MIN_SIZE_TEST: 1080
+#  MAX_SIZE_TRAIN: 1920
+#  MAX_SIZE_TEST: 1920
+#  CROP:
+#    ENABLED: True
+#    TYPE: "absolute"
+#    SIZE: (960, 960)
+#    SINGLE_CATEGORY_MAX_AREA: 1.0
+
+#  COLOR_AUG_SSD: True  # for RGB
+  COLOR_AUG_SSD: False
+  SIZE_DIVISIBILITY: -1
+#  FORMAT: "RGB"
+  FORMAT: "RGBA"
+  DATASET_MAPPER_NAME: "mask_former_semantic"
+TEST:
+  EVAL_PERIOD: 4000  # every 10 epoch(bs=4)
+  AUG:
+    ENABLED: False
+    MIN_SIZES: [512, 768, 1024, 1280, 1536, 1792]
+    MAX_SIZE: 4096
+    FLIP: True
+DATALOADER:
+  FILTER_EMPTY_ANNOTATIONS: True
+  NUM_WORKERS: 4
+VERSION: 2

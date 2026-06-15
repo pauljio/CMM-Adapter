@@ -1,0 +1,168 @@
+MODEL:
+  BACKBONE:
+    FREEZE_AT: 0
+    NAME: "build_resnet_backbone"
+  WEIGHTS: "detectron2://ImageNetPretrained/torchvision/R-50.pkl"
+  PIXEL_MEAN:
+    ### MFNetDataset
+    RGB: [ 56.499, 65.976, 58.657 ]
+    T: [ 100.830, 100.830, 100.830 ]
+
+    ### PST900
+  #  RGB: [87.896, 88.792, 84.435]
+  #  T: [63.230, 63.230, 63.230]
+
+    ### NUY_Depth_V2
+#    RGB: [120.224, 101.929, 95.899]
+#    D: [26798.298, 26798.298, 26798.298]  # Depth
+#    D: [140.704, 110.851, 113.044]  # HHA
+
+    ### SUN RGB-D
+#    RGB: [125.912, 116.549, 110.438]
+#    D: [ 182.915, 91.306, 104.844 ]       # HHA
+#    D: [19074.531, 19074.531, 19074.531]  # depth
+
+    ### Cityscapes
+#    RGB: [73.158, 82.909, 72.392]
+#    D: [33502.961, 33502.961, 33502.961]
+
+    ### ZJU-RGB-P
+#    RGB: [70.206, 70.331, 69.142]
+#    P: [123.467, 123.467, 123.467]  # AoLP
+#    P: [37.628, 37.628, 37.628]     # DoLP
+
+    ### EventScape
+#    RGB: [ 94.130, 94.951, 97.051 ]
+#    E: [ 9.644, 0.0, 10.724 ]
+
+    ### DELIVER
+    # RGB: [86.065, 84.333, 82.844]
+    # D: [118.145, 66.146, 110.639]  # HHA
+    # E: [15.675, 0. , 16.476]
+#    L: [236.389, 238.331, 252.892]  # color
+    # L: [1.733, 1.733, 1.733]  # gray
+
+  PIXEL_STD:
+    ### MFNetDataset
+    RGB: [ 42.671, 43.113, 42.843 ]
+    T: [ 19.323, 19.323, 19.323 ]
+
+    ### PST900
+#    RGB: [59.174, 60.869, 60.293]
+#    T: [14.613, 14.613, 14.613]
+
+    ### NUY_Depth_V2
+#    RGB: [62.039, 62.126, 63.925]
+#    D: [8812.980, 8812.980, 8812.980]  # Depth
+#    D: [42.979, 60.620, 33.753]  # HHA
+
+    ### SUN RGB-D
+#    RGB: [65.313, 66.655, 67.422]
+#    D: [ 45.315, 40.044, 36.519 ]      # HHA
+#    D: [7116.634, 7116.634, 7116.634]  # depth
+
+    ### Cityscapes
+#    RGB: [44.915, 46.153, 45.319]
+#    D: [24159.327, 24159.327, 24159.327]
+
+    ### ZJU-RGB-P
+#    RGB: [63.893, 64.148, 64.577]
+#    P: [46.702, 46.702, 46.702]  # AoLP
+#    P: [30.675, 30.675, 30.675]  # DoLP
+
+    ### EventScape
+#    RGB: [ 51.293, 49.680, 50.927 ]
+#    E: [ 45.399, 0.0, 47.629 ]
+
+    ### DELIVER
+#     RGB: [39.256, 37.491, 36.251]
+#     D: [105.124, 77.536, 43.666]  # HHA
+#     E: [54.403, 0. ,55.628]
+#     L: [55.146, 52.924, 13.570]  # color
+#     L: [7.389, 7.389, 7.389]  # gray
+
+  RESNETS:
+    DEPTH: 50
+    STEM_TYPE: "basic"  # not used
+    STEM_OUT_CHANNELS: 64
+    STRIDE_IN_1X1: False
+    OUT_FEATURES: ["res2", "res3", "res4", "res5"]
+    NORM: "BN"
+    RES5_MULTI_GRID: [1, 1, 1]  # not used
+DATASETS:
+  DATASET_ROOT: "/data1/cjp/Datasets"  # root dir of all datasets
+  MODAL: "RGB-T"
+  TRAIN: ("MFNetDataset_train",)
+  TEST: ("MFNetDataset_val",)
+  # MODAL: "RGB-T"
+  # TRAIN: ("PST900_train",)
+  # TEST: ("PST900_test",)
+  # MODAL: "RGB-D"
+  # TRAIN: ("NYU_Depth_V2_train",)
+  # TEST: ("NYU_Depth_V2_test",)
+  # MODAL: "RGB-D"
+  # TRAIN: ("SUN-RGBD_train",)
+  # TEST: ("SUN-RGBD_test",)
+  # MODAL: "RGB-D"
+  # TRAIN: ("Cityscapes_train",)
+  # TEST: ("Cityscapes_val",)
+  # MODAL: "RGB-P"
+  # TRAIN: ("ZJU-RGB-P_train",)
+  # TEST: ("ZJU-RGB-P_val",)
+  # MODAL: "RGB-E"
+  # TRAIN: ("EventScape_train",)
+  # TEST: ("EventScape_val",)
+  # MODAL: "RGB-D"
+  # TRAIN: ("DELIVER_train",)
+  # TEST: ("DELIVER_val",)
+
+SOLVER:
+  IMS_PER_BATCH: 8  # batch size
+  BASE_LR: 0.00005
+  MAX_ITER: 20000  # epoch: 100(bs=8)
+  CHECKPOINT_PERIOD: 4000  # every 20 epoch(bs=8)
+  WARMUP_FACTOR: 1.0
+  WARMUP_ITERS: 1000
+  WEIGHT_DECAY: 0.01
+  OPTIMIZER: "ADAMW"
+  LR_SCHEDULER_NAME: "WarmupPolyLR"  # "WarmupCosineLR"
+  BACKBONE_MULTIPLIER: 0.1
+  CLIP_GRADIENTS:
+    ENABLED: True
+    CLIP_TYPE: "full_model"
+    CLIP_VALUE: 0.01
+    NORM_TYPE: 2.0
+  AMP:
+    ENABLED: True
+
+INPUT:
+  AUG_ENABLED: True
+  CROP:
+    ENABLED: True
+    # H * W
+    SIZE: (480, 640)  # MFNet
+    # SIZE: (720, 1280)  # PST900
+    # SIZE: (480, 640)  # NYU_Depth_V2
+    # SIZE: (480, 480)  # SUN-RGBD
+    # SIZE: (512, 612)  # ZJU-RGB-P
+    # SIZE: (1024, 1024)  # DELIVER
+  COLOR_AUG_SSD: False
+  FLIP: True
+  SIZE_DIVISIBILITY: -1
+#  FORMAT: "RGB"
+  DATASET_MAPPER_NAME: "mask_former_semantic"
+
+TEST:
+  EVAL_PERIOD: 2000  # every 10 epoch(bs=8)
+  # Flat TEST config below is supported by the custom RGB-X TTA path.
+  # Standard Detectron2 TEST.AUG.* configs are also supported.
+  AUG_ENABLED: False
+  RESIZE:
+    ENABLED: True
+    SCALE: [0.5, 0.75, 1.0, 1.25, 1.5, 1.75]
+  FLIP: True
+
+DATALOADER:
+  FILTER_EMPTY_ANNOTATIONS: True
+  NUM_WORKERS: 8
+VERSION: 2

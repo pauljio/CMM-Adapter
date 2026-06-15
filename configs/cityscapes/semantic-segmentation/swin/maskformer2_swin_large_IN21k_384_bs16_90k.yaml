@@ -1,0 +1,48 @@
+_BASE_: ../maskformer2_R50_bs16_90k.yaml
+MODEL:
+  BACKBONE:
+    NAME: "D2SwinTransformer"
+  SWIN:
+    EMBED_DIM: 192
+    DEPTHS: [2, 2, 18, 2]
+    NUM_HEADS: [6, 12, 24, 48]
+    WINDOW_SIZE: 12
+    APE: False
+    DROP_PATH_RATE: 0.3
+    PATCH_NORM: True
+    PRETRAIN_IMG_SIZE: 384
+  WEIGHTS: "swin_large_patch4_window12_384_22k.pkl"
+#  PIXEL_MEAN: [123.675, 116.280, 103.530]
+#  PIXEL_STD: [58.395, 57.120, 57.375]
+  PIXEL_MEAN: [56.499, 65.976, 58.657, 100.830]
+  PIXEL_STD: [42.671, 43.113, 42.843, 19.323]
+  MASK_FORMER:
+    NUM_OBJECT_QUERIES: 100
+SOLVER:
+  IMS_PER_BATCH: 8  # batch size
+  BASE_LR: 0.0001
+  MAX_ITER: 20000  # epoch: 100(bs=8)
+  CHECKPOINT_PERIOD: 4000  # every 20 epoch(bs=8)
+  WARMUP_FACTOR: 1.0
+  WARMUP_ITERS: 0
+  WEIGHT_DECAY: 0.05
+TEST:
+  EVAL_PERIOD: 2000  # every 10 epoch(bs=8)
+
+FINE_TUNING:
+  ENABLE: False
+  FREEZE_AT: 0  # General freezing stage, not used yet
+  BACKBONE:
+    NAME: "Swin"
+  SWIN:
+    PATCH_EMBED: True
+    POS_DROP: True
+    LAYERS: [0, 1, 2, 3]
+    NORMS: ["norm0", "norm1", "norm2", "norm3"]
+  SEM_SEG_HEAD:
+    PIXEL_DECODER:
+      ADAPTER: False
+    PREDICTOR:
+      ADAPTER: False
+
+OUTPUT_DIR: "output/cityscapes/maskformer2_swin_large_IN21k_384_bs16_90k"

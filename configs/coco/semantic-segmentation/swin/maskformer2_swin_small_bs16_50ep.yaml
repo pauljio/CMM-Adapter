@@ -1,0 +1,43 @@
+_BASE_: ../maskformer2_R50_bs16_50ep.yaml
+MODEL:
+  BACKBONE:
+    NAME: "D2SwinTransformer"
+  SWIN:
+    EMBED_DIM: 96
+    DEPTHS: [2, 2, 18, 2]
+    NUM_HEADS: [3, 6, 12, 24]
+    WINDOW_SIZE: 7
+    APE: False
+    DROP_PATH_RATE: 0.3
+    PATCH_NORM: True
+  WEIGHTS: "swin_small_patch4_window7_224.pkl"
+
+SOLVER:
+  IMS_PER_BATCH: 8  # batch size
+  BASE_LR: 0.0001
+  STEPS: (17600, 19200)
+  MAX_ITER: 20000  # epoch: 100(bs=8)
+  CHECKPOINT_PERIOD: 4000  # every 20 epoch(bs=8)
+  WARMUP_FACTOR: 1.0
+  WARMUP_ITERS: 0
+  WEIGHT_DECAY: 0.05
+TEST:
+  EVAL_PERIOD: 2000  # every 10 epoch(bs=8)
+
+FINE_TUNING:
+  ENABLE: False
+  FREEZE_AT: 0  # General freezing stage, not used yet
+  BACKBONE:
+    NAME: "Swin"
+  SWIN:
+    PATCH_EMBED: True
+    POS_DROP: True
+    LAYERS: [0, 1, 2, 3]
+    NORMS: ["norm0", "norm1", "norm2", "norm3"]
+  SEM_SEG_HEAD:
+    PIXEL_DECODER:
+      ADAPTER: False
+    PREDICTOR:
+      ADAPTER: False
+
+OUTPUT_DIR: "output/coco/maskformer2_swin_small_bs16_50ep"

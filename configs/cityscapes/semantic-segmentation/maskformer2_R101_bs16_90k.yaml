@@ -1,0 +1,36 @@
+_BASE_: maskformer2_R50_bs16_90k.yaml
+MODEL:
+  WEIGHTS: "R-101.pkl"
+  RESNETS:
+    DEPTH: 101
+    STEM_TYPE: "basic"  # not used
+    STEM_OUT_CHANNELS: 64
+    STRIDE_IN_1X1: False
+    OUT_FEATURES: ["res2", "res3", "res4", "res5"]
+#    NORM: "SyncBN"
+    NORM: "BN"
+    RES5_MULTI_GRID: [1, 1, 1]  # not used
+SOLVER:
+  IMS_PER_BATCH: 8  # batch size
+  BASE_LR: 0.0001
+  MAX_ITER: 20000  # epoch: 100(bs=8)
+  CHECKPOINT_PERIOD: 4000  # every 20 epoch(bs=8)
+  WARMUP_FACTOR: 1.0
+  WARMUP_ITERS: 0
+  WEIGHT_DECAY: 0.05
+TEST:
+  EVAL_PERIOD: 2000  # every 10 epoch(bs=8)
+
+FINE_TUNING:
+  ENABLE: False
+  FREEZE_AT: 0  # General freezing stage, not used yet
+  BACKBONE:
+    NAME: "ResNet"
+  RESNET:
+    STEM: True
+    RES: ["res2", "res3", "res4", "res5"]
+  SEM_SEG_HEAD:
+    PIXEL_DECODER: False
+    PREDICTOR: False
+
+OUTPUT_DIR: "output/cityscapes/maskformer2_R101_bs16_90k"

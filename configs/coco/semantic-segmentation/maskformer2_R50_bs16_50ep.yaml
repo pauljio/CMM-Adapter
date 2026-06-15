@@ -1,0 +1,85 @@
+_BASE_: Base-COCO-SemanticSegmentation.yaml
+MODEL:
+  META_ARCHITECTURE: "MaskFormerRGBX"
+  SEM_SEG_HEAD:
+    NAME: "MaskFormerHeadRGBX"
+    IGNORE_VALUE: 255
+    NUM_CLASSES: 9  # MFNetDataset
+    #    NUM_CLASSES: 37  # SUN RGB-D
+    #    NUM_CLASSES: 12 # EventScape
+    LOSS_WEIGHT: 1.0
+    CONVS_DIM: 256
+    MASK_DIM: 256
+    NORM: "GN"
+    # pixel decoder
+    PIXEL_DECODER_NAME: "MSDeformAttnAdapterPixelDecoder"
+    IN_FEATURES: ["res2", "res3", "res4", "res5"]
+    DEFORMABLE_TRANSFORMER_ENCODER_IN_FEATURES: ["res3", "res4", "res5"]
+    COMMON_STRIDE: 4
+    TRANSFORMER_ENC_LAYERS: 6
+    ADAPTER_MID_DIM: 64  # 4x reduction
+    # MoE
+    NUM_EXPERTS: 12
+    FIXED_EXPERTS: 2
+    TOP_K: 4
+    PATCHES: 16
+  MASK_FORMER:
+    TRANSFORMER_DECODER_NAME: "MultiScaleMaskedTransformerAdapterDecoder"
+    TRANSFORMER_IN_FEATURE: "multi_scale_pixel_decoder"
+    DEEP_SUPERVISION: True
+    NO_OBJECT_WEIGHT: 0.1
+    WEIGHT_CLASSES: [
+
+    ]
+    CLASS_WEIGHT: 2.0  # default 2.0
+    MASK_WEIGHT: 5.0  # default 5.0
+    DICE_WEIGHT: 5.0  # default 5.0
+    HIDDEN_DIM: 256
+    NUM_OBJECT_QUERIES: 100
+    NHEADS: 8
+    DROPOUT: 0.0  # default 0.0
+    DIM_FEEDFORWARD: 2048
+    ENC_LAYERS: 0
+    PRE_NORM: True  # default False
+    ENFORCE_INPUT_PROJ: False
+    SIZE_DIVISIBILITY: 32
+    DEC_LAYERS: 10  # 9 decoder layers, add one for the loss on learnable query
+    TRAIN_NUM_POINTS: 12544  # default 12544
+    OVERSAMPLE_RATIO: 3.0
+    IMPORTANCE_SAMPLE_RATIO: 0.75
+    TEST:
+      SEMANTIC_ON: True
+      INSTANCE_ON: False
+      PANOPTIC_ON: False
+      OVERLAP_THRESHOLD: 0.8
+      OBJECT_MASK_THRESHOLD: 0.8
+    ADAPTER_DIM: 32  # 8x reduction
+    # MoE
+    MOE:
+      ENABLE: False
+      NUM_EXPERTS: 9
+      TOP_K: 3
+SOLVER:
+  IMS_PER_BATCH: 8  # batch size
+  BASE_LR: 0.0001
+  STEPS: (17600, 19200)
+  MAX_ITER: 20000  # epoch: 100(bs=8)
+  CHECKPOINT_PERIOD: 4000  # every 20 epoch(bs=8)
+  WARMUP_FACTOR: 1.0
+  WARMUP_ITERS: 0
+  WEIGHT_DECAY: 0.05
+TEST:
+  EVAL_PERIOD: 2000  # every 10 epoch(bs=8)
+
+FINE_TUNING:  # 'True' means freeze the parameters
+  ENABLE: False
+  FREEZE_AT: 0  # General freezing stage, not used yet
+  BACKBONE:
+    NAME: "ResNet"
+  SEM_SEG_HEAD:
+    PIXEL_DECODER:
+      ADAPTER: False
+    PREDICTOR:
+      ADAPTER: False
+
+OUTPUT_DIR: "output/coco/maskformer2_R50_bs16_50ep"

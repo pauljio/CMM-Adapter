@@ -1,0 +1,173 @@
+现在有以下任务需求：
+1.在swin的backbone中也增加Adapter，但是只在X模态的backbone中增加Adapter，RGB模态的backbone不增加Adapter。
+Adapter的结构示例如下：
+class SelfAdapter(nn.Module):
+    def __init__(self, d_model, d_mid, dropout=0.1):
+        super().__init__()
+        self.down_proj = nn.Linear(d_model, d_mid)
+        self.up_proj = nn.Linear(d_mid, d_model)
+        self.dropout = nn.Dropout(dropout)
+        self.activation = nn.ReLU()
+
+    def forward(self, x):
+        x = self.down_proj(x)
+        x = self.activation(x)
+        x = self.dropout(x)
+        x = self.up_proj(x)
+
+        return x
+激活函数选择GELU，在Attention和FFN中都增加Adapter。训练时只训练Adapter的参数，其他参数冻结。
+2.检查代码的训练逻辑是否存在问题，主程序为train_net.py。
+以MFNet数据集为例，从数据加载、模型构建、训练循环等方面检查代码的正确性和合理性。
+确保数据预处理、模型前向传播、损失计算和反向传播等步骤都正确实现，并且适用于MFNet数据集的特点。
+3.最终目的是在MFNet数据集上进行语义分割任务，使用Mask2Former模型，在backbone,pixel_decoder,transformer_decoder中增加Adapter进行参数高效适配并提升性能。
+训练的各项参数请你根据实际情况进行调整。训练配置主要涉及三个文件：
+- configs/coco/semantic-segmentation/Base-COCO-SemanticSegmentation.yaml
+- configs/coco/semantic-segmentation/maskformer2_R50_bs16_50ep.yaml
+- configs/coco/semantic-segmentation/maskformer2_swin_large_IN21k_bs16_100ep.yaml
+4.最后需要给我一条bash训练命令，以便我能够直接运行训练过程。
+
+
+按照以下要求修改代码：
+1.修改swin中的Adapter的位置：每个Block在Attention和FFN处分别并联Adapter，Adapter在每个Layer内的Block中共享参数。
+即swin共4个Layer，第一个Layer中有2个Block，这2个Block共享一个Adapter；第二个Layer中有2个Block，这2个Block共享一个Adapter；
+第三个Layer中有18个Block，这18个Block共享一个Adapter；第四个Layer中有2个Block，这2个Block共享一个Adapter。
+2.Adapter中的hidden_dim是否需要根据各Layer的输入维度进行调整？如果需要调整，请你根据swin的结构设计Adapter的dim。
+swin的4个Layer的输入维度分别为192，384，768，1536。
+3.修改train_net.py中freeze_params()方法的冻结参数的逻辑。先将所有参数都冻结，然后根据配置文件中指定的Adapter位置，解冻对应的Adapter参数。
+主要有三处Adapter位置需要修改：backbone, pixel_decoder, transformer_decoder。
+
+
+我想使用MFNet数据集利用Mask2Former预训练模型在语义分割任务上做微调。请你根据以下信息及日志，帮我分析一下问题所在，并给出解决方案。
+1.MFNet数据集包含RGB图像、T热图像和语义标签。train/val/test分别为1568/392/393，其中训练集由784张图像经过水平翻转得到。
+2.训练日志显示开始时loss下降较快，但在后续迭代中出现了震荡，且最终loss没有明显下降。mIoU最后达到53后就没有明显提升，我期望是到60及以上。
+3.训练过程中的所有设置和模型架构都存在日志中。
+4.使用的预训练模型是在实例分割任务上基于coco训练的Mask2Former，backbone为swin-large。
+5.我测试过，使用480*640的输入尺寸，在当前设置的参数量下，一张3090 GPU的batch size最多可以为4。我现在有4张3090（一台服务器有1张，另一台服务器有3张）和1张A6000 GPU。
+6.我目前都是单卡训练。
+7.模型的超参数主要有：
+    （1）backbone中adapter的维度。
+    （2）pixel decoder中adapter的维度，MoE中experts的总数，固定选择的experts数量，每次选择的experts数量(Top-K)，路由时特征图的patch数量。
+    （3）transformer decoder中adapter的维度。
+8.现在的Adapter架构设计如下：
+    （1）所有adapter(expert)都是一个bottleneck结构，包含一个线性层将输入特征图的维度降低到adapter的维度，一个ReLU激活函数和一个线性层将维度恢复到输入特征图的维度。
+    （2）backbone中adapter在各个Transformer Layer中共享参数，共4个Layer，各层adapter的维度动态变化(4倍)。
+    （3）pixel decoder中adapter在所有Transformer Layer中共享参数，共6个Layer，adapter的维度为64(256/4)。MoE中experts的总数为8，固定选择的experts数量为2，每次选择的experts数量为4，路由时特征图的patch数量为16。路由器每个Layer都有，不共享。
+    （4）transformer decoder中adapter在所有Transformer Layer中共享参数，共9个Layer。
+9.训练的超参数主要有：
+    （1）批量大小IMS_PER_BATCH。
+    （2）基础学习率BASE_LR。
+    （3）迭代次数MAX_ITER。
+    （4）学习率调度器的设置WARMUP_FACTOR，WARMUP_ITERS。
+    （5）权重衰减WEIGHT_DECAY。
+    （6）数据增强的设置，如随机裁剪、水平翻转、颜色抖动等。
+10.我已经尝试过调整学习率和批量大小，但效果不明显。
+
+
+根据以下要求，修改模型结构：
+1.swin backbone中取消使用Adapter。
+2.pixel decoder中每层Adapter不共享参数，6层就有6个MoE-Adapter，Adapter(Expert)的维度固定为64(256/4)，专家数量及路由patch数量的选择请你根据训练数据帮我考虑。
+3.transformer decoder中每层Adapter不共享参数，9层就有9个Adapter，Adapter的维度固定为64(256/4)。
+4.实验目的是使用MFNet数据集利用Mask2Former预训练模型在语义分割任务上做微调。MFNet数据集包含RGB图像、T图像和语义标签。train/val/test分别为1568/392/393，其中训练集由784张图像经过水平翻转得到。
+
+
+目标任务是使用MFNet数据集利用Mask2Former预训练模型在语义分割任务上做微调。根据以下信息，给出新的模型训练方案：
+1.MFNet数据集包含RGB图像、T热图像和语义标签。train/val/test分别为1568/392/393，其中训练集由784张图像经过水平翻转得到。
+2.目前模型可训练的参数主要由以下三部分组成：
+    （1）X模态backbone中各层adapter的参数：
+        - adapter的数量
+        - adapter的维度
+    （2）pixel decoder中各层adapter的参数：
+        - MoE中experts的总数
+        - 固定选择的experts数量
+        - 每次选择的experts数量(Top-K)
+        - 路由时特征图的patch数量
+        - expert的维度
+    （3）transformer decoder中各层adapter的参数：
+        - adapter的数量
+        - adapter的维度
+3.为了搞清楚模型对哪部分参数最敏感（对性能提升最有帮助），你需要利用现有的GPU资源设计实验方案。现在有3张3090的GPU和一张A6000的GPU。
+4，参考的实验时长：在3090上，batch size最大为4，iteration为20000，，每2000iter评估一次，大约需要7-8小时；在A6000上，batch size最大为8，iteration为20000，每2000iter评估一次,大约需要7-8小时。从现在开始到明天上午10点还有超过11小时。
+
+
+我现在想做这样一组实验，在PST900数据集上调整最合适的Adapter参数。相关信息如下：
+1.我的架构中有三部分Adapter：backbone中的Adapter，pixel decoder中的Adapter，transformer decoder中的Adapter。
+2.先把transformer decoder的参数调整好，再调整pixel decoder的参数，最后调整backbone的参数。
+3.调整transformer decoder中Adapter的参数：
+    - adapter的维度怎样设置？（输入维度为256）
+    - adapter的数量怎样设置？（共9层block）
+
+
+1.在配置DATASETS中增加DATASET_NAME字段，这样在换数据集时就不用手动修改register_rgbx_sem_seg.py中的注释。
+2.我对数据进行归一化的方法是否正确？我目前是对每一个数据集都计算了每个模态的均值和方差，我看StitchFusion官方的代码中是这样归一化的：
+class Normalize:
+    def __init__(self, mean: list = (0.485, 0.456, 0.406), std: list = (0.229, 0.224, 0.225)):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, sample: list) -> list:
+        for k, v in sample.items():
+            if k == 'mask':
+                continue
+            elif k == 'img':
+                sample[k] = sample[k].float()
+                sample[k] /= 255
+                sample[k] = TF.normalize(sample[k], self.mean, self.std)
+            else:
+                sample[k] = sample[k].float()
+                sample[k] /= 255
+        
+        return sample
+它对每个数据集不做区分，而且只对RGB做了TF.normalize，其他模态直接除以255。
+3.我现在要开始做adapter的消融，先从transformer decoder中adapter开始，请你帮我按照以下要求修改scripts中的训练脚本：
+    - 我现在有三张3090的GPU，可以在MFNet数据集上做两组6个实验。
+    - 每组实验的参数设置如下：
+        - adapter的维度：32, 64, 128 (分别是输入维度256的1/8, 1/4, 1/2)
+        - adapter的数量：1, 3, 9 (分别是9层block中共享1个adapter，3个adapter，每层block一个adapter)
+    - 在配置文件中要能调整backbone、pixel decoder、transformer decoder中adapter的维度和数量，在训练脚本中用命令行参数覆盖。
+    - batch size设置为4，iteration设置为20000，每2000iter评估一次。
+
+
+请你帮我把配置中关于adapter的配置都修改成下面的形式，不用兼容旧的配置结构：
+backbone中的adapter：
+MODEL:
+  SWIN:
+    ADAPTER:
+      ENABLED: False
+      DIMs: [48, 96, 192, 384]
+      COUNTs: [1, 1, 6, 1]
+
+pixel decoder中的adapter：
+MODEL:
+  SEM_SEG_HEAD:
+    ADAPTER:
+      ENABLED: True
+      DIM: 64
+      NUM_EXPERTS: 12
+      FIXED_EXPERTS: 0
+      TOP_K: 4
+      PATCHES: 16
+
+transformer decoder中的adapter：
+MODEL:
+  MASK_FORMER:
+    ADAPTER:
+      ENABLED: True
+      DIM: 64
+      COUNT: 9
+
+
+下面进行pixel decoder中adapter的消融实验，要求如下：
+1.配置新增MODEL.SEM_SEG_HEAD.ADAPTER.COUNT字段，表示pixel decoder中adapter的数量。
+2.三张GPU上做两组实验，一组固定adapter的维度为64，调整adapter的数量为1, 3, 6；另一组固定adapter的数量为6，调整adapter的维度为32, 64, 128。
+3.MoE的参数固定为：NUM_EXPERTS=12, FIXED_EXPERTS=0, TOP_K=4, PATCHES=16。
+4.训练参数设置为：batch size为4，iteration为20000，每2000iter评估一次。
+5.给出可复制到训练脚本的bash命令。
+6.项目运行环境为conda的mask2former环境。
+
+
+我想进行pixel decoder中moe adapter的moe消融实验，要求如下，请你给出实验方案并给出可复制到训练脚本的bash命令：
+1.只打开pixel decoder和transformer decoder中的adapter，backbone中的adapter保持关闭。
+2.在三张GPU上进行实验，每张GPU上合理分配实验使总训练时间均衡。
+3.调整MoE的NUM_EXPERTS、FIXED_EXPERTS、TOP_K、PATCHES参数。DIM固定为64，COUNT固定为6。
+4.实验参数设置为：batch size为4，iteration为20000，每1000iter评估一次，保存目录为pixel_decoder_ablation。

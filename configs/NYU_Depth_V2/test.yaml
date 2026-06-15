@@ -1,0 +1,155 @@
+MODEL:
+  BACKBONE:
+    NAME: "D2SwinTransformer"
+
+  SWIN:
+    EMBED_DIM: 192
+    DEPTHS: [2, 2, 18, 2]
+    NUM_HEADS: [6, 12, 24, 48]
+    WINDOW_SIZE: 12
+    APE: False
+    DROP_PATH_RATE: 0.3
+    PATCH_NORM: True
+    PRETRAIN_IMG_SIZE: 384
+    ADAPTER:
+      ENABLED: True
+      DIMs: [48, 96, 192, 384]
+      COUNTs: [1, 1, 6, 1]
+    
+  WEIGHTS: "../../Pretrained/maskformer2/maskformer2_coco_panoptic_swin_large_IN21k_384_bs16_100ep.pkl"
+
+  PIXEL_MEAN:
+    RGB: [126.268757, 108.809908, 103.052185]
+    D: [141.395864, 114.369063, 113.648944]
+  PIXEL_STD:
+    RGB: [73.931135, 75.443869, 78.529038]
+    D: [59.813397, 66.936671, 36.029323]
+
+  META_ARCHITECTURE: "MaskFormerRGBX"
+
+  SEM_SEG_HEAD:
+    NAME: "MaskFormerHeadRGBX"
+    IGNORE_VALUE: 255
+    NUM_CLASSES: 40  # NYU_Depth_V2
+    LOSS_WEIGHT: 1.0
+    CONVS_DIM: 256
+    MASK_DIM: 256
+    NORM: "GN"  # for lateral_conv and output_conv in pixel decoder
+    # pixel decoder
+    PIXEL_DECODER_NAME: "MSDeformAttnAdapterPixelDecoder"
+    IN_FEATURES: ["res2", "res3", "res4", "res5"]
+    DEFORMABLE_TRANSFORMER_ENCODER_IN_FEATURES: ["res3", "res4", "res5"]
+    COMMON_STRIDE: 4  # common stride for extra FPN layers
+    TRANSFORMER_ENC_LAYERS: 6
+    ADAPTER:
+      ENABLED: True
+      DIM: 64
+      COUNT: 6
+      NUM_EXPERTS: 12
+      FIXED_EXPERTS: 0
+      TOP_K: 4
+      PATCHES: 16
+
+  MASK_FORMER:
+    TRANSFORMER_DECODER_NAME: "MultiScaleMaskedTransformerAdapterDecoder"
+    TRANSFORMER_IN_FEATURE: "multi_scale_pixel_decoder"
+    DEEP_SUPERVISION: True
+    NO_OBJECT_WEIGHT: 0.1
+    WEIGHT_CLASSES: []
+    CLASS_WEIGHT: 2.0  # default 2.0
+    MASK_WEIGHT: 5.0  # default 5.0
+    DICE_WEIGHT: 5.0  # default 5.0
+    HIDDEN_DIM: 256
+    NUM_OBJECT_QUERIES: 200  # for swin-large, 100 for else
+    NHEADS: 8
+    DROPOUT: 0.0  # default 0.0
+    DIM_FEEDFORWARD: 2048
+    ENC_LAYERS: 0
+    PRE_NORM: False  # default False
+    ENFORCE_INPUT_PROJ: False
+    SIZE_DIVISIBILITY: 32
+    DEC_LAYERS: 10  # 9 decoder layers, add one for the loss on learnable query
+    TRAIN_NUM_POINTS: 12544  # default 12544
+    OVERSAMPLE_RATIO: 3.0
+    IMPORTANCE_SAMPLE_RATIO: 0.75
+    TEST:
+      SEMANTIC_ON: True
+      INSTANCE_ON: False
+      PANOPTIC_ON: False
+      OVERLAP_THRESHOLD: 0.8
+      OBJECT_MASK_THRESHOLD: 0.8
+    ADAPTER:
+      ENABLED: True
+      DIM: 64
+      COUNT: 9
+
+SEED: 42
+
+DATASETS:
+  DATASET_ROOT: "/data1/cjp/Datasets"  # root dir of all datasets
+  MODAL: "RGB-D"
+  DATASET_NAME: "NYU_Depth_V2"
+  TRAIN: ("NYU_Depth_V2_train",)  # 795 images
+  TEST: ("NYU_Depth_V2_test",)  # 654 images
+
+SOLVER:
+  IMS_PER_BATCH: 4  # batch size
+  BASE_LR: 0.0001
+  MAX_ITER: 40
+  STEPS: (17600, 19200)  # for 'WarmupMultiStepLR' (iter*0.88, iter*0.96)
+  CHECKPOINT_PERIOD: 4000
+  WARMUP_FACTOR: 0.1
+  WARMUP_ITERS: 0  # no warmup
+  WEIGHT_DECAY: 0.01
+  OPTIMIZER: "ADAMW"
+  LR_SCHEDULER_NAME: "WarmupPolyLR"  # "WarmupCosineLR, WarmupMultiStepLR"
+  BACKBONE_MULTIPLIER: 1.0
+  CLIP_GRADIENTS:
+    ENABLED: True
+    CLIP_TYPE: "full_model"
+    CLIP_VALUE: 0.01
+    NORM_TYPE: 2.0
+  AMP:
+    ENABLED: True
+
+TEST:
+  EVAL_PERIOD: 40
+  BEST_CHECKPOINTER:
+    ENABLED: True
+    METRIC: "sem_seg/mIoU"
+    MODE: "max"
+    FILE_PREFIX: "model_best_mIoU"
+  AUG_ENABLED: False
+  RESIZE:
+    ENABLED: True
+    SCALE: [0.5, 0.75, 1.0, 1.25, 1.5, 1.75]
+  FLIP: True
+
+FINE_TUNING:
+  ENABLE: True
+  BACKBONE:
+    NAME: "Swin"
+    ADAPTER: True  # if True, unfreeze backbone adapter params
+  SEM_SEG_HEAD:
+    PIXEL_DECODER:
+      ADAPTER: True
+    PREDICTOR:
+      ADAPTER: True
+
+INPUT:
+  AUG_ENABLED: True
+  CROP:
+    ENABLED: True
+    SIZE: (480, 640)  # H * W
+  COLOR_AUG_SSD: True
+  FLIP: True
+  SIZE_DIVISIBILITY: -1
+  DATASET_MAPPER_NAME: "mask_former_semantic"
+
+DATALOADER:
+  FILTER_EMPTY_ANNOTATIONS: True
+  NUM_WORKERS: 8
+
+OUTPUT_DIR: "output/coco/NYU_Depth_V2/test/"
+
+VERSION: 2
